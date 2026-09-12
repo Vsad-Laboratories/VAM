@@ -1,0 +1,53 @@
+# Rust
+target/
+debug.rs
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+*.lib
+*.a
+*.rlib
+*.bin
+
+# Cargo
+Cargo.lock
+
+# Generated
+*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tool/environment
+.agents/
+.claude/
+.kilo/
+agent/
+skills-lock.json
+
+# Environment
+.env
+.env.local
+
+# Test
+coverage/
+*.prof
+*.profraw
+
+# VAM specific
+/vam
+/vam-runtims/
+*.vampkg

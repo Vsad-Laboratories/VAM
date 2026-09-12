@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+branch=$(git branch --show-current 2>/dev/null || echo "")
+if echo "$branch" | grep -qE '^goal/[0-9]+-'; then
+    msg=$(head -1 "$1" 2>/dev/null || echo "")
+    if ! echo "$msg" | grep -qE '^goal/[0-9]+-[a-z0-9-]+:'; then
+        echo "ERROR: Commits on goal branches must start with 'goal/<number>-<short-name>: <subject>'" >&2
+        exit 1
+    fi
+fi

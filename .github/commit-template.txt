@@ -1,0 +1,7 @@
+goal/<number>-<short-name>: <subject>
+
+Body: describe the logical change made
+
+- What goal does this serve?
+- What module/area does it affect?
+- Does it complete a checklist item (specification, tests, docs)?
