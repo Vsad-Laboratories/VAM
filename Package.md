@@ -781,12 +781,16 @@ This specification defines the **designed** package system.
 - Repository: Git-based
 - VamRuntims: `/usr/lib/vam/runtims/`
 
+**Implemented (Goal 005):**
+
+- In-memory package model: `PackageId` (`<developer>.<name>` identity) and `Manifest` data model with the §4.1 required fields (name, developer, version, release, description, purpose, package_type).
+- Manifest validation: required-field presence checking via `Manifest::validate`/`PackageId::validate`, integrated with the `Error`/`Result` model (`ErrorKind::Usage`).
+
 **Not yet implemented:**
 
 - No `.vampkg` builder exists
-- No manifest parser exists
+- No TOML manifest parser or `vampkg` loader exists
 - No VAM Runtime implementation exists
-- No package validation exists
 - No repository infrastructure exists
 - No package signing exists
 - No configuration DSL parser exists
