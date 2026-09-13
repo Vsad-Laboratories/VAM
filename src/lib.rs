@@ -2,11 +2,12 @@ pub mod cli;
 pub mod config;
 pub mod error;
 pub mod log;
+pub mod system;
 
 pub use error::{Error, ErrorKind, Result};
 
 pub fn run() -> Result<()> {
-    run_with_args(std::env::args().skip(1).collect())
+    run_with_args(crate::system::args().into_iter().skip(1).collect())
 }
 
 pub fn run_with_args(args: Vec<String>) -> Result<()> {

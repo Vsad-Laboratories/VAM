@@ -6,6 +6,7 @@ Implementation boundaries for VAM foundation:
 - error: Coherent error type for the foundation. Expandable by future subsystems.
 - config: Minimal configuration boundary. Initialized safely.
 - log: Minimal diagnostic boundary. Initialized safely.
+- system: System Interface boundary owning host-system interaction (the `args` entry point that reads process command-line arguments).
 
 No external dependencies. All functionality provided by the Rust standard library.
 
@@ -17,6 +18,17 @@ No external dependencies. All functionality provided by the Rust standard librar
 - `Display` renders the user-facing message. `Debug` includes kind, message, and whether a source is present, but omits source details.
 - `pub type Result<T>` is the project-wide result convention, re-exported from the crate root.
 - Errors are created at the boundary where the failure is meaningfully understood: CLI creates `Usage` errors, application/core propagates them, internal failures use `Internal`.
+
+## System Interface contract
+
+- The System Interface (`system` module) owns VAM's interaction with the host operating system. It isolates host-system operations from VAM Core so OS details do not leak into application coordination.
+- `system::args` reads host-provided process command-line arguments, returning the program path as the first element (mirroring `std::env::args`). It performs no shell expansion, validation, or parsing.
+- `run()` reads arguments through `system::args` (the host boundary) and delegates to `run_with_args` (the explicit-argument, testable seam). Tests use `run_with_args` to avoid environment dependence.
+- `args` is infallible: the host always provides arguments and `std::env::args` replaces non-UTF-8 bytes rather than erroring. When a later, fallible System Interface operation is added, OS failures map to `ErrorKind::Internal`; no new error taxonomy is introduced.
+- Current scope (Goal 004): argument reading only. Command/process spawning, filesystem inspection, package-manager interaction, service management, and privileged operations are deferred until genuinely required and are not implemented here.
+- Process termination remains the responsibility of the thin `main` entry point; stdout/stderr output remains the responsibility of the CLI presentation layer and the diagnostics boundary.
+- The System Interface does not own CLI argument parsing, UI presentation, package policy, configuration, security policy, or package/runtime lifecycle.
+- No external dependencies are used; the Rust standard library is sufficient for the current scope.
 
 ## Diagnostics / logging contract
 
