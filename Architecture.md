@@ -302,6 +302,37 @@ The System Interface provides VAM with access to system information and operatio
 - Process information
 - Hardware detection
 
+### 7.3 Foundation Implementation (Goal 004)
+
+The System Interface boundary is established as the `system` module, owning
+host-system interaction so that OS details do not leak into VAM Core. Only
+operations with a current, genuine requirement are implemented; the full
+interface in sections 7.1 and 7.2 is planned capability, not current
+functionality.
+
+**Currently implemented (Goal 004):**
+
+- `system::args` — reads the host process command-line arguments. This is the
+  only host-system operation the current foundation requires. Command/process
+  spawning, filesystem inspection, package-manager interaction, service
+  management, privileged operations, hardware detection, and system
+  information queries are deferred until genuinely required.
+
+**Ownership and boundaries:**
+
+- The System Interface owns host-system mechanics and translates OS failures
+  into `ErrorKind::Internal` for operations that can fail.
+- The System Interface does **not** own CLI argument parsing, UI presentation,
+  package policy, configuration, security policy, or package/runtime lifecycle.
+- Process termination remains the responsibility of the thin `main` entry
+  point; stdout/stderr output remains the responsibility of the CLI
+  presentation layer and the diagnostics boundary.
+- No external dependencies back the System Interface; the Rust standard
+  library is sufficient for the current scope.
+
+Future operations will be added incrementally, each only when justified by an
+actual VAM requirement.
+
 ---
 
 ## 8. CLI
