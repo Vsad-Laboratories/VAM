@@ -7,7 +7,6 @@ Implementation boundaries for VAM foundation:
 - config: Minimal configuration boundary. Initialized safely.
 - log: Minimal diagnostic boundary. Initialized safely.
 - system: System Interface boundary owning host-system interaction (the `args` entry point that reads process command-line arguments).
-- package: Package model boundary owning the in-memory manifest representation and manifest validation.
 
 No external dependencies. All functionality provided by the Rust standard library.
 
