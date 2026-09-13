@@ -1,6 +1,6 @@
 fn main() {
     if let Err(e) = vam::run() {
-        eprintln!("Error: {}", e);
+        eprintln!("error: {}", e);
         std::process::exit(1);
     }
 }
