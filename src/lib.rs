@@ -2,6 +2,7 @@ pub mod cli;
 pub mod config;
 pub mod error;
 pub mod log;
+pub mod package;
 pub mod system;
 
 pub use error::{Error, ErrorKind, Result};
