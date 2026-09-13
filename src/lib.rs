@@ -133,4 +133,11 @@ mod tests {
         let err = Error::usage("user message");
         assert_eq!(err.user_message(), err.message());
     }
+
+    #[test]
+    fn test_diagnostics_log_error_integration() {
+        let err = Error::new(ErrorKind::Internal, "integration test error");
+        let diag = Diagnostics::new().unwrap();
+        diag.log_error(&err, "integration context");
+    }
 }
