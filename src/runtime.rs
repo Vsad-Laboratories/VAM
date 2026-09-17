@@ -1,5 +1,6 @@
 use crate::error::{Error, ErrorKind, Result};
 use crate::package::{validate_package_path, Manifest};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Runtime state for a prepared package.
@@ -79,6 +80,9 @@ pub fn prepare(
     let entrypoint = resolve_entrypoint(&package_root, "entrypoint")?;
 
     let working_dir = runtime_root.join(identity).join("work");
+    fs::create_dir_all(&working_dir).map_err(|e| {
+        Error::with_source(ErrorKind::Internal, "failed to create working directory", e)
+    })?;
 
     let environment = RuntimeEnvironment::new();
 

@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod config;
 pub mod error;
+pub mod executor;
 pub mod log;
 pub mod package;
 pub mod runtime;
