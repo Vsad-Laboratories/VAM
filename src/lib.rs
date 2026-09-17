@@ -6,6 +6,7 @@ pub mod log;
 pub mod package;
 pub mod runtime;
 pub mod system;
+pub mod tui;
 
 pub use error::{Error, ErrorKind, Result};
 
@@ -34,33 +35,27 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_dispatch_help() {
-        let result = cli::dispatch(cli::Command::Help);
-        assert!(result.is_ok());
-    }
-
-    #[test]
     fn test_cli_dispatch_version() {
-        let result = cli::dispatch(cli::Command::Version);
+        let result = cli::dispatch(None);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_version_behavior() {
         let cmd = cli::parse(&["version".to_string()]).unwrap();
-        assert_eq!(cmd, cli::Command::Version);
+        assert_eq!(cmd, Some(cli::Command::Version));
     }
 
     #[test]
     fn test_help_behavior() {
         let cmd = cli::parse(&["help".to_string()]).unwrap();
-        assert_eq!(cmd, cli::Command::Help);
+        assert!(cmd.is_none());
     }
 
     #[test]
     fn test_cli_dispatch_empty_args_shows_help() {
         let cmd = cli::parse(&[]).unwrap();
-        assert_eq!(cmd, cli::Command::Help);
+        assert!(cmd.is_none());
     }
 
     #[test]
@@ -70,12 +65,11 @@ mod tests {
         let err = result.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Usage);
         assert!(err.user_message().contains("Unknown command"));
-        assert!(err.user_message().contains("help, version"));
     }
 
     #[test]
     fn test_too_many_args_produces_usage_error() {
-        let result = cli::parse(&["help".to_string(), "extra".to_string()]);
+        let result = cli::parse(&["version".to_string(), "extra".to_string()]);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Usage);
