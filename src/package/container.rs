@@ -151,7 +151,7 @@ pub fn serialize_toml(info: &PackageInfo) -> String {
     lines.join("\n")
 }
 /// Expects exactly the seven keys as strings.
-fn deserialize_toml(toml: &str) -> Result<PackageInfo> {
+pub fn deserialize_toml(toml: &str) -> Result<PackageInfo> {
     let mut name = None;
     let mut developer = None;
     let mut version = None;
