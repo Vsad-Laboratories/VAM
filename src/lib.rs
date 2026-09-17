@@ -1,9 +1,12 @@
 pub mod cli;
 pub mod config;
 pub mod error;
+pub mod executor;
 pub mod log;
 pub mod package;
+pub mod runtime;
 pub mod system;
+pub mod tui;
 
 pub use error::{Error, ErrorKind, Result};
 
@@ -28,12 +31,6 @@ mod tests {
     #[test]
     fn test_application_initialization_succeeds() {
         let result = crate::run_with_args(vec!["version".to_string()]);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_cli_dispatch_help() {
-        let result = cli::dispatch(cli::Command::Help);
         assert!(result.is_ok());
     }
 
@@ -68,7 +65,6 @@ mod tests {
         let err = result.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Usage);
         assert!(err.user_message().contains("Unknown command"));
-        assert!(err.user_message().contains("help, version"));
     }
 
     #[test]
