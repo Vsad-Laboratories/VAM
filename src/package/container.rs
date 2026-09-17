@@ -24,8 +24,103 @@ pub struct PackageInfo {
     pub package_type: String,
 }
 
+#[allow(clippy::type_complexity)]
+pub fn inspect_extract<P: AsRef<Path>>(
+    path: P,
+) -> Result<(PackageInfo, Option<Vec<u8>>, Vec<(String, Vec<u8>)>)> {
+    let path = path.as_ref();
+    let mut file = fs::File::open(path)?;
+    // Read header: 4 bytes magic + 4 bytes version
+    let mut magic = [0u8; 4];
+    file.read_exact(&mut magic)?;
+    if magic != VAM_MAGIC {
+        return Err(Error::usage("invalid VAM package magic"));
+    }
+    let mut version_bytes = [0u8; 4];
+    file.read_exact(&mut version_bytes)?;
+    let version = u32::from_le_bytes(version_bytes);
+    if version != CONTAINER_VERSION {
+        return Err(Error::usage("unsupported container version"));
+    }
+    // The rest is the compressed tar data
+    let mut compressed = Vec::new();
+    file.read_to_end(&mut compressed)?;
+
+    // Decompress
+    let tar_data = zstd::stream::decode_all(&*compressed)?;
+
+    // Parse tar archive
+    let mut manifest_toml = None;
+    let mut entrypoint_data = None;
+    let mut payload_files = Vec::new();
+
+    let mut archive = tar::Archive::new(&*tar_data);
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let rel_path = entry
+            .path()?
+            .to_str()
+            .ok_or_else(|| Error::usage("path contains invalid Unicode"))?
+            .to_string();
+        // Validate the path inside the archive (should be safe, but we check)
+        validate_package_path(&rel_path)?;
+        let mut contents = Vec::new();
+        entry.read_to_end(&mut contents)?;
+        match rel_path.as_str() {
+            "manifest.toml" => {
+                if manifest_toml.is_some() {
+                    return Err(Error::usage("duplicate manifest.toml in archive"));
+                }
+                manifest_toml = Some(String::from_utf8(contents).map_err(|e| {
+                    Error::with_source(ErrorKind::Internal, "manifest.toml is not valid UTF-8", e)
+                })?);
+            }
+            "entrypoint" => {
+                if entrypoint_data.is_some() {
+                    return Err(Error::usage("duplicate entrypoint in archive"));
+                }
+                entrypoint_data = Some(contents);
+            }
+            _ => {
+                // Assume it's a payload file
+                payload_files.push((rel_path, contents));
+            }
+        }
+    }
+
+    let manifest_toml =
+        manifest_toml.ok_or_else(|| Error::usage("manifest.toml not found in archive"))?;
+    let info = deserialize_toml(&manifest_toml)?;
+
+    // Validate the manifest
+    let manifest = Manifest {
+        name: info.name.clone(),
+        developer: info.developer.clone(),
+        version: info.version.clone(),
+        release: info.release.clone(),
+        description: info.description.clone(),
+        purpose: info.purpose.clone(),
+        package_type: info.package_type.clone(),
+    };
+    manifest.validate()?;
+
+    // Validate entrypoint exists
+    if entrypoint_data.is_none() {
+        return Err(Error::usage("entrypoint not found in archive"));
+    }
+    let mut seen = HashSet::new();
+    for (rel_path, _) in &payload_files {
+        if !seen.insert(rel_path) {
+            return Err(Error::usage("duplicate logical path in payload"));
+        }
+        validate_package_path(rel_path)?;
+    }
+
+    Ok((info, entrypoint_data, payload_files))
+}
+
 /// Serializes a PackageInfo to a TOML string (simple key-value).
-fn serialize_toml(info: &PackageInfo) -> String {
+pub fn serialize_toml(info: &PackageInfo) -> String {
     fn escape_toml_string(s: &str) -> String {
         let mut escaped = String::with_capacity(s.len() + 2);
         escaped.push('"');
@@ -43,11 +138,7 @@ fn serialize_toml(info: &PackageInfo) -> String {
     let mut lines = Vec::new();
     macro_rules! add_field {
         ($key:expr, $value:expr) => {
-            lines.push(format!(
-                "{} = {}",
-                $key,
-                escape_toml_string($value)
-            ));
+            lines.push(format!("{} = {}", $key, escape_toml_string($value)));
         };
     }
     add_field!("name", &info.name);
@@ -132,9 +223,10 @@ fn relative_path(base: &Path, path: &Path) -> Result<String> {
     loop {
         match (base_iter.next(), path_iter.next()) {
             (None, None) => return Ok(String::new()),
-            (None, Some(_comp)) => {
+            (None, Some(p)) => {
                 // base is a prefix of path
                 let mut rel = PathBuf::new();
+                rel.push(p);
                 for c in path_iter {
                     rel = rel.join(c);
                 }
@@ -279,7 +371,7 @@ pub fn create<P: AsRef<Path>, Q: AsRef<Path>>(source_dir: P, output: Q) -> Resul
     let mut output_file = fs::File::create(output)?;
     output_file.write_all(&VAM_MAGIC)?;
     output_file.write_all(&CONTAINER_VERSION.to_le_bytes())?;
-    output_file.write_all(&*compressed)?;
+    output_file.write_all(&compressed)?;
 
     Ok(())
 }
@@ -319,7 +411,8 @@ pub fn inspect<P: AsRef<Path>>(path: P) -> Result<PackageInfo> {
     let mut archive = tar::Archive::new(&*tar_data);
     for entry in archive.entries()? {
         let mut entry = entry?;
-        let rel_path = entry.path()?
+        let rel_path = entry
+            .path()?
             .to_str()
             .ok_or_else(|| Error::usage("path contains invalid Unicode"))?
             .to_string();
@@ -332,8 +425,9 @@ pub fn inspect<P: AsRef<Path>>(path: P) -> Result<PackageInfo> {
                 if manifest_toml.is_some() {
                     return Err(Error::usage("duplicate manifest.toml in archive"));
                 }
-                manifest_toml = Some(String::from_utf8(contents)
-                    .map_err(|e| Error::with_source(ErrorKind::Internal, "manifest.toml is not valid UTF-8", e))?);
+                manifest_toml = Some(String::from_utf8(contents).map_err(|e| {
+                    Error::with_source(ErrorKind::Internal, "manifest.toml is not valid UTF-8", e)
+                })?);
             }
             "entrypoint" => {
                 if entrypoint_data.is_some() {
@@ -348,7 +442,8 @@ pub fn inspect<P: AsRef<Path>>(path: P) -> Result<PackageInfo> {
         }
     }
 
-    let manifest_toml = manifest_toml.ok_or_else(|| Error::usage("manifest.toml not found in archive"))?;
+    let manifest_toml =
+        manifest_toml.ok_or_else(|| Error::usage("manifest.toml not found in archive"))?;
     let info = deserialize_toml(&manifest_toml)?;
 
     // Validate the manifest
@@ -382,7 +477,7 @@ pub fn inspect<P: AsRef<Path>>(path: P) -> Result<PackageInfo> {
 mod tests {
     use super::*;
     use std::fs;
-    use std::io::Write;
+
     use tempfile::TempDir;
 
     fn create_sample_package(dir: &Path) {
@@ -415,7 +510,9 @@ package_type = "standard"
         create_sample_package(&src_dir);
 
         let out_path = temp.path().join("out.vampkg");
-        assert!(create(&src_dir, &out_path).is_ok());
+        let result = create(&src_dir, &out_path);
+        println!("{:?}", result);
+        assert!(result.is_ok());
 
         let info = inspect(&out_path).unwrap();
         assert_eq!(info.name, "test");
@@ -489,7 +586,7 @@ package_type = "standard"
         let mut buf = Vec::new();
         buf.extend_from_slice(b"VAMP");
         buf.extend_from_slice(&2u32.to_le_bytes()); // version 2
-        fs::write(bad.clone(),         fs::write(bad.clone(),         fs::write(bad.clone(), fs::write(bad, &buf)buf).unwrap();buf).unwrap();buf).unwrap();
+        fs::write(bad.clone(), &buf).unwrap();
         assert!(inspect(&bad).is_err());
     }
 }
