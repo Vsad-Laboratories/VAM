@@ -36,26 +36,26 @@ mod tests {
 
     #[test]
     fn test_cli_dispatch_version() {
-        let result = cli::dispatch(None);
+        let result = cli::dispatch(cli::Command::Version);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_version_behavior() {
         let cmd = cli::parse(&["version".to_string()]).unwrap();
-        assert_eq!(cmd, Some(cli::Command::Version));
+        assert_eq!(cmd, cli::Command::Version);
     }
 
     #[test]
     fn test_help_behavior() {
         let cmd = cli::parse(&["help".to_string()]).unwrap();
-        assert!(cmd.is_none());
+        assert_eq!(cmd, cli::Command::Help);
     }
 
     #[test]
     fn test_cli_dispatch_empty_args_shows_help() {
         let cmd = cli::parse(&[]).unwrap();
-        assert!(cmd.is_none());
+        assert_eq!(cmd, cli::Command::Help);
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn test_too_many_args_produces_usage_error() {
-        let result = cli::parse(&["version".to_string(), "extra".to_string()]);
+        let result = cli::parse(&["help".to_string(), "extra".to_string()]);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Usage);
