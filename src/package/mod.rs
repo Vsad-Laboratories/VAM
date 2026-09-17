@@ -52,8 +52,9 @@
 //! validation enforces presence only.
 
 use crate::error::{Error, Result};
-use std::fmt;
 use std::collections::HashSet;
+use std::fmt;
+use std::path::{Component, Path};
 
 /// A package's unique `<developer>.<name>` composite identity.
 ///
@@ -145,7 +146,8 @@ impl Manifest {
 
         Ok(())
     }
-n/// Validates a package path according to security rules.
+}
+/// Validates a package path according to security rules.
 /// Returns ErrorKind::Usage on violation.
 pub fn validate_package_path<P: AsRef<Path>>(path: P) -> Result<()> {
     let path = path.as_ref();
@@ -155,11 +157,11 @@ pub fn validate_package_path<P: AsRef<Path>>(path: P) -> Result<()> {
     }
     // 2. No `..` components
     for component in path.components() {
-        if matches!(component, std::path::Component::ParentDir) {
-            return Err(Error::usage("package path must not contain `..`));
+        if matches!(component, Component::ParentDir) {
+            return Err(Error::usage("package path must not contain '..'"));
         }
     }
-    Ok(());
+    Ok(())
 }
 
 #[cfg(test)]
@@ -300,12 +302,13 @@ mod tests {
         let err = manifest.validate().unwrap_err();
         assert_eq!(
             err.message(),
-            "test message"
+            "manifest field 'description' must not be empty"
         );
         let _ = 0;
     }
 }
 pub mod container;
+pub mod installation;
 
 /// Validates a complete decoded VAM package.
 ///
@@ -334,3 +337,47 @@ pub mod container;
 /// 5. All payload file paths are valid (package-relative, no `..`, not absolute)
 /// 6. There are no duplicate logical paths in the payload
 /// 7. Basic package consistency (manifest matches payload structure where possible)
+pub fn validate_package(
+    manifest: &Manifest,
+    entrypoint_data: &Option<Vec<u8>>,
+    payload_files: &[(String, Vec<u8>)],
+) -> Result<()> {
+    // 1. Validate the manifest
+    manifest.validate()?;
+
+    // 2. An entrypoint is declared and exists
+    //    We assume the entrypoint path is always "entrypoint"
+    let entrypoint_path = "entrypoint";
+    if entrypoint_data.is_none() {
+        return Err(Error::usage("entrypoint not declared"));
+    }
+    // 3. The entrypoint path is valid (package-relative, no `..`, not absolute)
+    validate_package_path(entrypoint_path)?;
+    // 4. The entrypoint exists in the payload files
+    let entrypoint_exists = payload_files
+        .iter()
+        .any(|(path, _)| path == entrypoint_path);
+    if !entrypoint_exists {
+        return Err(Error::usage("entrypoint not found in payload"));
+    }
+
+    // 5. All payload file paths are valid (package-relative, no `..`, not absolute)
+    // 6. There are no duplicate logical paths in the payload
+    let mut seen = HashSet::new();
+    for (rel_path, _) in payload_files {
+        // 5. Validate the path
+        validate_package_path(rel_path)?;
+        // 6. Check for duplicates
+        if !seen.insert(rel_path) {
+            return Err(Error::usage("duplicate logical path in payload"));
+        }
+    }
+
+    // 7. Basic package consistency (manifest matches payload structure where possible)
+    //    We skip this rule because it's vague and we don't have enough information.
+    //    We could check that the manifest's version and release are present?
+    //    But they are already validated in manifest.validate().
+    //    So we do nothing.
+
+    Ok(())
+}

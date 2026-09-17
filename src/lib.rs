@@ -3,6 +3,7 @@ pub mod config;
 pub mod error;
 pub mod log;
 pub mod package;
+pub mod runtime;
 pub mod system;
 
 pub use error::{Error, ErrorKind, Result};
