@@ -79,3 +79,9 @@ impl fmt::Debug for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::with_source(ErrorKind::Internal, "IO error", err)
+    }
+}

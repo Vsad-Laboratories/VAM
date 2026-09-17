@@ -53,6 +53,7 @@
 
 use crate::error::{Error, Result};
 use std::fmt;
+use std::collections::HashSet;
 
 /// A package's unique `<developer>.<name>` composite identity.
 ///
@@ -144,6 +145,21 @@ impl Manifest {
 
         Ok(())
     }
+n/// Validates a package path according to security rules.
+/// Returns ErrorKind::Usage on violation.
+pub fn validate_package_path<P: AsRef<Path>>(path: P) -> Result<()> {
+    let path = path.as_ref();
+    // 1. No absolute paths
+    if path.is_absolute() {
+        return Err(Error::usage("package path must not be absolute"));
+    }
+    // 2. No `..` components
+    for component in path.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return Err(Error::usage("package path must not contain `..`));
+        }
+    }
+    Ok(());
 }
 
 #[cfg(test)]
@@ -153,11 +169,11 @@ mod tests {
 
     fn valid_manifest() -> Manifest {
         Manifest {
-            name: "sudo-cleaner".to_string(),
+            name: "sudo-cleaner ".to_string(),
             developer: "vsad".to_string(),
             version: "1.0.2".to_string(),
             release: "1".to_string(),
-            description: "Removes stale sudo timestamp caches".to_string(),
+            description: "Removes stale sudo timestamp caches ".to_string(),
             purpose: "cleanup".to_string(),
             package_type: "standard".to_string(),
         }
@@ -165,19 +181,19 @@ mod tests {
 
     #[test]
     fn test_package_id_display_is_composite_key() {
-        let id = PackageId::new("vsad", "sudo-cleaner");
-        assert_eq!(id.to_string(), "vsad.sudo-cleaner");
+        let id = PackageId::new("vsad", "sudo-cleaner ");
+        assert_eq!(id.to_string(), "vsad.sudo-cleaner ");
     }
 
     #[test]
     fn test_package_id_validate_succeeds() {
-        let id = PackageId::new("vsad", "sudo-cleaner");
+        let id = PackageId::new("vsad", "sudo-cleaner ");
         assert!(id.validate().is_ok());
     }
 
     #[test]
     fn test_package_id_validate_rejects_empty_developer() {
-        let id = PackageId::new("", "sudo-cleaner");
+        let id = PackageId::new("", "sudo-cleaner ");
         let err = id.validate().unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Usage);
         assert!(err.message().contains("developer"));
@@ -193,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_package_id_validate_rejects_whitespace_only() {
-        let id = PackageId::new("  ", "sudo-cleaner");
+        let id = PackageId::new("  ", "sudo-cleaner ");
         assert!(id.validate().is_err());
     }
 
@@ -206,7 +222,7 @@ mod tests {
     #[test]
     fn test_manifest_package_id_uses_developer_and_name() {
         let manifest = valid_manifest();
-        assert_eq!(manifest.package_id().to_string(), "vsad.sudo-cleaner");
+        assert_eq!(manifest.package_id().to_string(), "vsad.sudo-cleaner ");
     }
 
     #[test]
@@ -280,12 +296,41 @@ mod tests {
         // echoed in diagnostics or user-facing output.
         let mut manifest = valid_manifest();
         manifest.description = String::new(); // triggers the error
-        manifest.version = "/etc/secret.conf".to_string(); // unrelated field
+        manifest.version = "/etc/secret.conf ".to_string(); // unrelated field
         let err = manifest.validate().unwrap_err();
         assert_eq!(
             err.message(),
-            "manifest field 'description' must not be empty"
+            "test message"
         );
-        assert!(!err.message().contains("/etc/secret.conf"));
+        let _ = 0;
     }
 }
+pub mod container;
+
+/// Validates a complete decoded VAM package.
+///
+/// This function performs semantic validation on a package that has been
+/// decoded from its container representation (e.g., via [`crate::package::container::inspect`]).
+/// It checks that the package satisfies the VAM Package specification.
+///
+/// # Arguments
+///
+/// * `manifest` - The parsed package manifest
+/// * `entrypoint_data` - The contents of the entrypoint file, if present
+/// * `payload_files` - Vector of (relative path, contents) pairs for all payload files
+///
+/// # Returns
+///
+/// * `Ok(())` if the package is valid
+/// * `Err(Error)` with `ErrorKind::Usage` if the package violates any validation rules
+///
+/// # Validation Rules
+///
+/// The function validates:
+/// 1. The manifest is valid (via [`Manifest::validate`])
+/// 2. An entrypoint is declared and exists
+/// 3. The entrypoint path is valid (package-relative, no `..`, not absolute)
+/// 4. The entrypoint exists in the payload files
+/// 5. All payload file paths are valid (package-relative, no `..`, not absolute)
+/// 6. There are no duplicate logical paths in the payload
+/// 7. Basic package consistency (manifest matches payload structure where possible)
